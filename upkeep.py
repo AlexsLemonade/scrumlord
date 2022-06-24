@@ -1,32 +1,87 @@
 import argparse
 import datetime
+import logging
 import re
 
 import holidays
-import github
 
+from github import Github
+from github.Issue import Issue
 
-class PennHolidays(holidays.UnitedStates):
+from typing import Iterator
 
-    def _populate(self, year):
-        super()._populate(year)
-
-
-holiday_names = {
-    'Independence Day',
-    'Labor Day',
-    'Thanksgiving',
-    'Christmas Day',
+HOLIDAY_NAMES = {
     "New Year's Day",
-    'Martin Luther King, Jr. Day',
-    'Memorial Day',
-    'Special Winter Vacation',
+    "Martin Luther King, Jr. Day",
+    "Memorial Day",
+    "Juneteenth National Independence Day",
+    "Independence Day",
+    "Labor Day",
+    "Thanksgiving",
+    "Christmas Day",
 }
 
-penn_holidays = PennHolidays()
+PA_HOLIDAYS = holidays.country_holidays("US", subdiv="PA")
+
+log = logging.getLogger(__name__)
+log.setLevel(logging.ERROR)
 
 
-def get_today():
+def close_old_issues(issues: list[Issue], lifespan: int):
+    """
+    Closes scrum issues older than the number of days specified by lifespan.
+    """
+    lifespan = datetime.timedelta(days=lifespan)
+    today = get_today()
+
+    for issue in issues:
+        date = issue_title_to_date(issue.title)
+        if not date:
+            continue
+
+        if today - date > lifespan:
+            log.info(f"Closing {issue.title}")
+            try:
+                issue.edit(state="closed")
+            except Exception as e:
+                log.error("Closing issue failed:", exc_info=True)
+
+
+def create_scrum_issue(repository, date):
+    """
+    Creates a scrum issue for the given date.
+    """
+    body = "\n".join(
+        (
+            "Please be sure to include:",
+            "  - What you worked on yesterday.",
+            "  - What you plan on working on today.",
+            "  - Any blockers.",
+        )
+    )
+    title = f"{date}: e-scrum for {date:%A, %B %-d, %Y}"
+
+    log.info(f"Creating {title}")
+    try:
+        repository.create_issue(title=title, body=body)
+    except Exception as e:
+        log.error("Creating issue failed:", exc_info=True)
+
+
+def get_future_dates_without_issues(
+    issues: list[Issue], workdays_ahead=2
+) -> list[datetime.date]:
+    """
+    Looks through issues and yields the dates of future workdays (includes today)
+    that don't have open issues.
+    """
+    future_dates = set(get_upcoming_workdays(workdays_ahead))
+    future_dates -= {issue_title_to_date(issue.title) for issue in issues}
+
+    return sorted(future_dates)
+
+
+def get_today() -> datetime.date:
     """
     Returns the datetime.date for today. Needed since tests cannot mock a
     builtin type: http://stackoverflow.com/a/24005764/4651668
@@ -34,89 +89,16 @@ def get_today():
     return datetime.date.today()
 
 
-def is_holiday(date) -> bool:
+def get_upcoming_workdays(workdays_ahead=2) -> Iterator[datetime.date]:
     """
-    Return True or False for whether a date is a holiday
-    """
-    name = penn_holidays.get(date)
-    if not name:
-        return False
-    name = name.replace(' (Observed)', '')
-    return name in holiday_names
-
-
-def is_workday(date) -> bool:
-    """
-    Return boolean for whether a date is a workday.
-    """
-    if date.weekday() in holidays.WEEKEND:
-        return False
-    if is_holiday(date):
-        return False
-    return True
-
-
-def issue_title_to_date(title: str):
-    """
-    Return a datetime.date object from a Scrum issue title.
-    """
-    pattern = re.compile(r'([0-9]{4})-([0-9]{2})-([0-9]{2}):')
-    match = pattern.match(title)
-    if not match:
-        return None
-    return datetime.date(*map(int, match.groups()))
-
-
-def close_old_issues(issues, lifespan: int):
-    """
-    Close scrum issues older than the number of days specified by lifespan.
-    """
-    lifespan = datetime.timedelta(days=lifespan)
-    today = get_today()
-    for issue in issues:
-        title = issue.title
-        date = issue_title_to_date(title)
-        if not date:
-            continue
-        if today - date > lifespan:
-            print('Closing', title)
-            try:
-                issue.edit(state='closed')
-            except Exception as e:
-                print('Closing issue failed:', e)
-
-
-def create_scrum_issue(repo, date):
-    """
-    Create a scrum issue for the given date
-    """
-    title = f"{date}: e-scrum for {date:%A, %B %-d, %Y}"
-    print('Creating', title)
-    try:
-        repo.create_issue(title)
-    except Exception as e:
-        print('Creating issue failed:', e)
-
-
-def get_future_dates_without_issues(issues, workdays_ahead=2):
-    """
-    Look through issues and yield the dates of future workdays (includes today)
-    that don't have open issues.
-    """
-    future_dates = set(get_upcoming_workdays(workdays_ahead))
-    future_dates -= {issue_title_to_date(x.title) for x in issues}
-    return sorted(future_dates)
-
-
-def get_upcoming_workdays(workdays_ahead=2):
-    """
-    Return a generator of the next number of workdays specified by
+    Returns a generator of the next number of workdays specified by
     workdays_ahead. The current day is yielded first, if a workday,
     and does not count as one of workdays_ahead.
     """
     date = get_today()
     if is_workday(date):
         yield date
+
     i = 0
     while i < workdays_ahead:
         date += datetime.timedelta(days=1)
@@ -125,30 +107,45 @@ def get_upcoming_workdays(workdays_ahead=2):
             i += 1
 
 
-if __name__ == '__main__':
+def is_holiday(date: datetime.date) -> bool:
+    """
+    Returns `True` if a date is a holiday.  Returns `False` otherwise.
+    """
+    return PA_HOLIDAYS.get(date, "").replace(" (Observed)", "") in HOLIDAY_NAMES
+
+
+def is_workday(date: datetime.date) -> bool:
+    """
+    Returns `True` if a date is a workday. Returns `False` otherwise.
+    """
+    return date.weekday() not in holidays.WEEKEND and not is_holiday(date)
+
+
+def issue_title_to_date(title: str) -> datetime.date:
+    """
+    Returns a datetime.date object from a scrum issue title.
+    """
+    pattern = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2}):")
+    match = pattern.match(title)
+    if match:
+        return datetime.date(*map(int, match.groups()))
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--username', default='kurtwheeler')
-    parser.add_argument(
-        '--token', help='GitHub personal access token for --username')
-    parser.add_argument('--repository', default='AlexsLemonade/scrum')
-    parser.add_argument('--lifespan', type=int, default=7)
-    parser.add_argument('--workdays-ahead', type=int, default=2)
+    parser.add_argument("--lifespan", type=int, default=7)
+    parser.add_argument("--repository", default="AlexsLemonade/scrumlord-test")
+    parser.add_argument("--token", help="GitHub access token")
+    parser.add_argument("--workdays-ahead", type=int, default=2)
     args = parser.parse_args()
 
-    gh = github.Github(args.username, args.token)
-    user = gh.get_user()
+    github = Github(args.token)
+    repository = github.get_repo(args.repository)
+    issues = list(repository.get_issues(state="open"))
 
-    # Get Alexsleomonade/scrum repository. Could not find a better way
-    repo, = [repo for repo in user.get_repos()
-             if repo.full_name == args.repository]
-
-    # Get open issues
-    issues = list(repo.get_issues())
-
-    # Close old issues
+    # Close old issues.
     close_old_issues(issues, args.lifespan)
 
-    # Create upcoming issues
-    dates = get_future_dates_without_issues(issues, args.workdays_ahead)
-    for date in dates:
-        create_scrum_issue(repo, date)
+    # Create upcoming issues.
+    for date in get_future_dates_without_issues(issues, args.workdays_ahead):
+        create_scrum_issue(repository, date)
