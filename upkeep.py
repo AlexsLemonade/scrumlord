@@ -10,17 +10,6 @@ from github.Issue import Issue
 
 from typing import Iterator
 
-HOLIDAY_NAMES = {
-    "New Year's Day",
-    "Martin Luther King, Jr. Day",
-    "Memorial Day",
-    "Juneteenth National Independence Day",
-    "Independence Day",
-    "Labor Day",
-    "Thanksgiving",
-    "Christmas Day",
-}
-
 PA_HOLIDAYS = holidays.country_holidays("US", subdiv="PA")
 
 log = logging.getLogger(__name__)
@@ -81,6 +70,12 @@ def get_future_dates_without_issues(
     return sorted(future_dates)
 
 
+def get_holidays() -> set[str]:
+    with open("holidays.txt", "r") as holidays_file:
+        lines = [l.strip() for l in holidays_file.readlines()]
+    return set([l for l in lines if l and not l.startswith("#")])
+
+
 def get_today() -> datetime.date:
     """
     Returns the datetime.date for today. Needed since tests cannot mock a
@@ -111,7 +106,7 @@ def is_holiday(date: datetime.date) -> bool:
     """
     Returns `True` if a date is a holiday.  Returns `False` otherwise.
     """
-    return PA_HOLIDAYS.get(date, "").replace(" (Observed)", "") in HOLIDAY_NAMES
+    return PA_HOLIDAYS.get(date, "").replace(" (Observed)", "") in get_holidays()
 
 
 def is_workday(date: datetime.date) -> bool:
@@ -136,12 +131,17 @@ if __name__ == "__main__":
     parser.add_argument("--lifespan", type=int, default=7)
     parser.add_argument("--repository", default="AlexsLemonade/scrumlord-test")
     parser.add_argument("--token", help="GitHub access token")
+    parser.add_argument("--username", help="GitHub username")
     parser.add_argument("--workdays-ahead", type=int, default=2)
     args = parser.parse_args()
 
-    github = Github(args.token)
+    if args.username:
+        github = Github(args.username, args.token)
+    else:
+        github = Github(args.token)  # GA bot.
+
     repository = github.get_repo(args.repository)
-    issues = list(repository.get_issues(state="open"))
+    issues = repository.get_issues(state="open")
 
     # Close old issues.
     close_old_issues(issues, args.lifespan)

@@ -1,0 +1,10 @@
+# The names must match holiday names in https://github.com/dr-prodigy/python-holidays/blob/master/holidays/countries/united_states.py
+
+New Year's Day
+Martin Luther King, Jr. Day
+Memorial Day
+Juneteenth National Independence Day
+Independence Day
+Labor Day
+Thanksgiving
+Christmas Day
