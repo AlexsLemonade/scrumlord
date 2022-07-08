@@ -135,10 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--workdays-ahead", type=int, default=2)
     args = parser.parse_args()
 
-    if args.username:
-        github = Github(args.username, args.token)
-    else:
-        github = Github(args.token)  # GA bot.
+    github = Github(args.token)
 
     repository = github.get_repo(args.repository)
     issues = repository.get_issues(state="open")
