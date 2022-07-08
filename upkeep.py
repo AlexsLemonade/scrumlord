@@ -131,12 +131,10 @@ if __name__ == "__main__":
     parser.add_argument("--lifespan", type=int, default=7)
     parser.add_argument("--repository", default="AlexsLemonade/scrumlord-test")
     parser.add_argument("--token", help="GitHub access token")
-    parser.add_argument("--username", help="GitHub username")
     parser.add_argument("--workdays-ahead", type=int, default=2)
     args = parser.parse_args()
 
     github = Github(args.token)
-
     repository = github.get_repo(args.repository)
     issues = repository.get_issues(state="open")
 
