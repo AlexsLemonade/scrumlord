@@ -27,4 +27,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Upkeep
-        run: python upkeep.py --repository="AlexsLemonade/scrum" --token=${{ secrets.GITHUB_TOKEN }} --username="kurtwheeler" --workdays-ahead=1
+        run: python upkeep.py --repository="AlexsLemonade/scrum" --token=${{ secrets.GITHUB_TOKEN }} --username="alexslemonade-docs-bot" --workdays-ahead=1
