@@ -26,6 +26,6 @@ jobs:
 
       - name: Make new issues
         run: >
-          python upkeep.py
-              --token=${{ secrets.DOCS_BOT_GITHUB_TOKEN }}
+          python upkeep.py \
+              --token=${{ secrets.DOCS_BOT_GITHUB_TOKEN }} \
               --workdays-ahead=1
