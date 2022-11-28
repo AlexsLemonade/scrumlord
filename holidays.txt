@@ -1,4 +1,5 @@
-# The names must match holiday names in https://github.com/dr-prodigy/python-holidays/blob/master/holidays/countries/united_states.py
+# The names must match holiday names in
+# https://github.com/dr-prodigy/python-holidays/blob/master/holidays/countries/united_states.py
 
 New Year's Day
 Martin Luther King, Jr. Day

@@ -32,7 +32,7 @@ def close_old_issues(issues: list[Issue], lifespan: int):
             log.info(f"Closing {issue.title}")
             try:
                 issue.edit(state="closed")
-            except Exception as e:
+            except Exception:
                 log.error("Closing issue failed:", exc_info=True)
 
 
@@ -53,7 +53,7 @@ def create_scrum_issue(repository, date):
     log.info(f"Creating {title}")
     try:
         repository.create_issue(title=title, body=body)
-    except Exception as e:
+    except Exception:
         log.error("Creating issue failed:", exc_info=True)
 
 
@@ -61,8 +61,8 @@ def get_future_dates_without_issues(
     issues: list[Issue], workdays_ahead=2
 ) -> list[datetime.date]:
     """
-    Looks through issues and yields the dates of future workdays (includes today)
-    that don't have open issues.
+    Looks through issues and yields the dates of future workdays
+    (includes today) that don't have open issues.
     """
     future_dates = set(get_upcoming_workdays(workdays_ahead))
     future_dates -= {issue_title_to_date(issue.title) for issue in issues}
@@ -72,8 +72,8 @@ def get_future_dates_without_issues(
 
 def get_holidays() -> set[str]:
     with open("holidays.txt", "r") as holidays_file:
-        lines = [l.strip() for l in holidays_file.readlines()]
-    return set([l for l in lines if l and not l.startswith("#")])
+        lines = [line.strip() for line in holidays_file.readlines()]
+    return set([line for line in lines if line and not line.startswith("#")])
 
 
 def get_today() -> datetime.date:
@@ -104,9 +104,10 @@ def get_upcoming_workdays(workdays_ahead=2) -> Iterator[datetime.date]:
 
 def is_holiday(date: datetime.date) -> bool:
     """
-    Returns `True` if a date is a holiday.  Returns `False` otherwise.
+    Returns `True` if a date is a holiday. Returns `False` otherwise.
     """
-    return PA_HOLIDAYS.get(date, "").replace(" (Observed)", "") in get_holidays()
+    holiday = PA_HOLIDAYS.get(date, "").replace(" (Observed)", "")
+    return holiday in get_holidays()
 
 
 def is_workday(date: datetime.date) -> bool:
