@@ -25,9 +25,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Load 1Password secrets
+        uses: 1password/load-secrets-action@v1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_DOCS_BOT_SERVICE_TOKEN }}
+          DOCS_BOT_GITHUB_TOKEN: ${{ secrets.OP_DOCS_BOT_GITHUB_TOKEN }}
+
       - name: Run Upkeep
         run: >
           python upkeep.py \
               --repository="AlexsLemonade/scrum" \
-              --token="${{ secrets.DOCS_BOT_GITHUB_TOKEN }}" \
+              --token="${{ env.DOCS_BOT_GITHUB_TOKEN }}" \
               --workdays-ahead=1
